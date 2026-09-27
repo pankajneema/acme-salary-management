@@ -6,6 +6,7 @@ from typing import Annotated, Self
 from pydantic import BaseModel, EmailStr, Field, StringConstraints, field_validator, model_validator
 
 from app.models import Employee
+from app.services.stats import SalaryStats
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 Label = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
@@ -117,3 +118,76 @@ class EmployeePage(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# --- Insights -------------------------------------------------------------------------
+# Money is rounded to whole currency units at the API edge; services keep full precision.
+
+
+class StatsOut(BaseModel):
+    count: int
+    min: int
+    max: int
+    mean: int
+    median: int
+
+    @classmethod
+    def from_stats(cls, stats: SalaryStats) -> Self:
+        return cls(
+            count=stats.count,
+            min=round(stats.min),
+            max=round(stats.max),
+            mean=round(stats.mean),
+            median=round(stats.median),
+        )
+
+
+class CountryInsightOut(BaseModel):
+    country_code: str
+    country_name: str
+    currency: str
+    headcount: int
+    local: StatsOut
+    usd: StatsOut
+
+
+class JobTitleInsightOut(BaseModel):
+    job_title: str
+    department: str
+    headcount: int
+    local: StatsOut
+    usd: StatsOut
+
+
+class CountryJobTitlesOut(BaseModel):
+    country_code: str
+    country_name: str
+    currency: str
+    job_titles: list[JobTitleInsightOut]
+
+
+class DepartmentInsightOut(BaseModel):
+    department: str
+    headcount: int
+    total_payroll_usd: int
+    median_salary_usd: int
+
+
+class SummaryOut(BaseModel):
+    headcount: int
+    country_count: int
+    total_payroll_usd: int
+    salary_usd: StatsOut | None
+    departments: list[DepartmentInsightOut]
+
+
+class BucketOut(BaseModel):
+    start: float
+    end: float
+    count: int
+
+
+class DistributionOut(BaseModel):
+    currency: str
+    bucket_size: float
+    buckets: list[BucketOut]

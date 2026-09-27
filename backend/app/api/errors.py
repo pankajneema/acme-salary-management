@@ -4,11 +4,13 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 from app.services.employees import DuplicateEmailError, EmployeeNotFoundError, UnknownCountryError
+from app.services.insights import CountryNotFoundError
 
 _ERRORS: dict[type[Exception], tuple[int, str]] = {
     EmployeeNotFoundError: (status.HTTP_404_NOT_FOUND, "Employee not found"),
     DuplicateEmailError: (status.HTTP_409_CONFLICT, "An employee with this email already exists"),
     UnknownCountryError: (status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown country code"),
+    CountryNotFoundError: (status.HTTP_404_NOT_FOUND, "Country not found"),
 }
 
 

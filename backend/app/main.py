@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import employees, meta
+from app.api import employees, insights, meta
 from app.api.errors import register_error_handlers
 from app.config import Settings
 from app.db import Base, create_db_engine, create_session_factory
@@ -41,6 +41,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_error_handlers(app)
     app.include_router(meta.router)
     app.include_router(employees.router)
+    app.include_router(insights.router)
     return app
 
 

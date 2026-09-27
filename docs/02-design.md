@@ -94,6 +94,8 @@ Decisions:
 | GET | `/api/meta` | Countries, departments, job titles for dropdowns |
 | GET | `/api/health` | Liveness |
 
+Insight responses carry stats in both **local currency** and **USD**. USD stats are derived by scaling the local stats (`SalaryStats.scaled`), which is exact because min/max/mean/median are all linear in the values. Histogram bucket widths are "nice" 1/2/5×10ⁿ values, so labels read as $80k–$100k rather than $81,337–$92,110. Empty buckets inside the range are kept, so gaps show honestly.
+
 `sort` is checked against an allow-list, so user input never reaches `ORDER BY` as raw SQL. Sorting by salary uses the **USD equivalent** (`salary_usd`): local amounts in different currencies can't be compared.
 
 Domain errors (`EmployeeNotFoundError`, `DuplicateEmailError`, `UnknownCountryError`) are raised by services and mapped to 404/409/422 in one place (`app/api/errors.py`). CSV export streams rows and escapes cells that start with `= + - @` to block spreadsheet formula injection.
@@ -125,6 +127,10 @@ Measured on the seeded 10k database (MacBook, uvicorn, warm, single request):
 | `GET /api/employees?search=sharma` (LIKE scan over name/email/code) | ~11 ms |
 | `GET /api/employees?sort=salary_usd&order=desc&page=200` (computed sort, deep offset) | ~15 ms |
 | `GET /api/employees/export.csv` (all 10k rows, streamed) | ~150 ms |
+| `GET /api/insights/summary` (payroll, median, departments) | ~16 ms |
+| `GET /api/insights/countries` (min/max/mean/median × 10 countries) | ~20 ms |
+| `GET /api/insights/countries/IN/job-titles` | ~5 ms |
+| `GET /api/insights/distribution` (org-wide histogram) | ~9 ms |
 - SQLite runs in WAL mode for concurrent reads during writes.
 - The frontend debounces search (300 ms) and keeps the previous page on screen while loading to avoid flicker.
 
