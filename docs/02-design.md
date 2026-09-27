@@ -1,0 +1,124 @@
+# Design Notes
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Browser
+        UI[React + Vite + Mantine<br/>Employees page · Insights page]
+    end
+    subgraph "Single container (Render)"
+        API[FastAPI<br/>/api/*]
+        STATIC[Static files<br/>built React app]
+        SVC[Services<br/>employee_service · insights_service]
+        DB[(SQLite<br/>employees · countries)]
+    end
+    UI -- JSON over HTTP --> API
+    UI -. GET / .-> STATIC
+    API --> SVC --> DB
+```
+
+**One deployable unit.** FastAPI serves both `/api/*` and the built React bundle. That means one Render service, one URL, no CORS in production, and no second deploy to keep in sync. In development Vite proxies `/api` to the backend.
+
+### Backend layering
+
+```
+backend/app/
+  main.py            app factory, router wiring, static files
+  config.py          settings (env vars)
+  db.py              engine / session / Base
+  models.py          SQLAlchemy ORM (Country, Employee)
+  schemas.py         Pydantic request/response models (API contract)
+  reference_data.py  countries, currencies, FX rates, departments, job titles
+  services/
+    employees.py     queries & mutations (search / filter / sort / paginate)
+    insights.py      aggregation queries
+    stats.py         pure functions: median, percentile, histogram buckets
+  api/
+    employees.py     HTTP layer: validation, status codes, CSV export
+    insights.py
+    meta.py          reference data for UI dropdowns
+  seed.py            deterministic 10k seed
+```
+
+Routers are kept thin; services hold the logic; `stats.py` is pure and is the most unit-tested module. Routers depend on a `get_db` dependency, so tests swap in an in-memory database.
+
+## Data model
+
+```mermaid
+erDiagram
+    COUNTRY ||--o{ EMPLOYEE : employs
+    COUNTRY {
+        string code PK "ISO-3166 alpha-2, e.g. IN"
+        string name
+        string currency "ISO-4217, e.g. INR"
+        float  usd_rate "1 unit local = usd_rate USD (dated snapshot)"
+    }
+    EMPLOYEE {
+        int    id PK
+        string employee_code UK "EMP-00001"
+        string full_name
+        string email UK
+        string job_title
+        string department
+        string country_code FK
+        int    salary "annual gross, whole local-currency units"
+        date   hire_date
+        datetime created_at
+        datetime updated_at
+    }
+```
+
+Decisions:
+
+- **Integer salary.** Money is never a float in storage. Whole currency units are precise enough for annual salaries and avoid minor-unit confusion (JPY has none).
+- **Currency lives on Country, not on Employee.** A value that can be derived is not stored twice, so "an Indian employee paid in EUR" is impossible by construction.
+- **FX snapshot in a table.** USD conversion is `salary * usd_rate` at query time. Updating the rates means updating 10 rows, not 10k.
+- **Department and job title are strings**, not lookup tables. HR renames titles often, and a fixed enum would get in the way. The UI offers a curated list from `/api/meta`. With more time these would become managed lookup tables.
+- **Indexes:** `country_code`, `department`, `job_title`, the composite `(country_code, job_title)` (for the insight in F5), and unique indexes on `email` and `employee_code`.
+
+## API
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/employees?search=&country=&department=&job_title=&sort=&order=&page=&page_size=` | Paginated list, returns `{items, total, page, page_size}` |
+| GET | `/api/employees/export.csv?…same filters` | Streams CSV of the filtered set |
+| GET | `/api/employees/{id}` | One employee |
+| POST | `/api/employees` | Create (201). 409 on duplicate email, 422 on validation errors |
+| PATCH | `/api/employees/{id}` | Partial update |
+| DELETE | `/api/employees/{id}` | 204 |
+| GET | `/api/insights/summary` | Headcount, payroll USD, avg/median USD, department breakdown |
+| GET | `/api/insights/countries` | Per country: headcount, min/max/avg/median (local + USD) |
+| GET | `/api/insights/countries/{code}/job-titles` | Per job title in a country: min/max/avg/median |
+| GET | `/api/insights/distribution?country=` | Salary histogram (USD buckets) |
+| GET | `/api/meta` | Countries, departments, job titles for dropdowns |
+| GET | `/api/health` | Liveness |
+
+`sort` is checked against an allow-list, so user input never reaches `ORDER BY` as raw SQL.
+
+## Trade-offs
+
+| Decision | Alternative | Why this one |
+|----------|-------------|--------------|
+| SQLite | Postgres | Zero-ops and a single file. 10k rows is tiny. SQLAlchemy keeps the swap cheap. Cost: on Render's free tier the disk is ephemeral, so data resets on redeploy. Mitigated by auto-seeding; a paid disk or Postgres fixes it. |
+| `create_all` on startup | Alembic migrations | One table plus a lookup table, and no production data to migrate yet. Alembic is the first addition once the schema starts evolving (e.g. salary history). |
+| Median computed in Python | SQL window functions | SQLite has no `MEDIAN`/`PERCENTILE_CONT`. Pulling `(group, salary)` sorted for 10k rows costs ~10 ms and gives exact, testable results. On Postgres this would move to `percentile_cont`. |
+| Offset pagination | Keyset/cursor | HR wants "page 37 of 400" and jumping to a page. Offset over 10k indexed rows is cheap. Keyset matters at millions of rows. |
+| Server-side filtering | Load everything client-side | 10k rows × ~10 fields would work, but it doesn't scale, it slows first paint, and it would ship every salary to the browser whatever the user is looking at. |
+| Mantine | MUI / AntD | Good table, form and chart primitives, a small API, and no licensing gotchas (MUI's DataGrid Pro features are paid). |
+
+## Performance considerations
+
+- All list queries are `COUNT(*)` + `LIMIT/OFFSET` on indexed columns. The search uses `LIKE` over name/email/code. At 10k rows a full scan is about 1–3 ms in SQLite, so an FTS index isn't worth its complexity yet.
+- Insight endpoints run one grouped query each. None of them loops over rows with N+1 queries.
+- The seed uses a single bulk `INSERT` (executemany) inside one transaction: 10k rows in well under a second.
+- SQLite runs in WAL mode for concurrent reads during writes.
+- The frontend debounces search (300 ms) and keeps the previous page on screen while loading to avoid flicker.
+
+## What I'd build next
+
+1. Salary history table (effective-dated) plus an audit log of who changed what. This enables "raises in the last 12 months".
+2. SSO auth, and role separation (HR Admin vs. read-only Finance).
+3. CSV import with a dry-run preview and row-level errors.
+4. Pay-equity views (gender or level bands). These need extra, sensitive attributes and a privacy review first.
+5. Postgres, Alembic, and a scheduled FX-rate update with dated snapshots.
