@@ -14,6 +14,32 @@ export function useMeta() {
   return useQuery({ queryKey: queryKeys.meta, queryFn: api.meta, staleTime: Infinity })
 }
 
+// Insight queries share the ['insights'] prefix so any employee write refreshes them all.
+export function useSummary() {
+  return useQuery({ queryKey: [...queryKeys.insights, 'summary'], queryFn: api.summary })
+}
+
+export function useCountryInsights() {
+  return useQuery({ queryKey: [...queryKeys.insights, 'countries'], queryFn: api.countryInsights })
+}
+
+export function useJobTitleInsights(countryCode: string | undefined) {
+  return useQuery({
+    queryKey: [...queryKeys.insights, 'job-titles', countryCode],
+    queryFn: () => api.jobTitleInsights(countryCode!),
+    enabled: Boolean(countryCode),
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useDistribution(countryCode?: string) {
+  return useQuery({
+    queryKey: [...queryKeys.insights, 'distribution', countryCode ?? 'all'],
+    queryFn: () => api.distribution(countryCode),
+    placeholderData: keepPreviousData,
+  })
+}
+
 export function useEmployees(query: EmployeeQuery) {
   return useQuery({
     queryKey: queryKeys.employees(query),

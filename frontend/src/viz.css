@@ -1,0 +1,16 @@
+/*
+ * Chart color tokens. Every chart on the Insights page encodes one measure (magnitude),
+ * so it uses a single hue. Values were checked with the dataviz palette validator
+ * against Mantine's light (#ffffff) and dark (#242424) surfaces: both >= 3:1 contrast.
+ */
+:root {
+  --viz-series: #2a78d6;
+  --viz-range: #b7d3f6;
+  --viz-track: #f0efec;
+}
+
+:root[data-mantine-color-scheme='dark'] {
+  --viz-series: #3987e5;
+  --viz-range: #1c5cab;
+  --viz-track: #383835;
+}

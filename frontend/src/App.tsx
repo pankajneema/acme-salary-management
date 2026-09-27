@@ -10,10 +10,13 @@ import {
   useComputedColorScheme,
   useMantineColorScheme,
 } from '@mantine/core'
-import { IconCoin, IconMoon, IconSun, IconUsers } from '@tabler/icons-react'
+import { IconChartBar, IconCoin, IconMoon, IconSun, IconUsers } from '@tabler/icons-react'
 import { NavLink, Outlet } from 'react-router'
 
-const NAV_ITEMS = [{ to: '/employees', label: 'Employees', icon: IconUsers }]
+const NAV_ITEMS = [
+  { to: '/employees', label: 'Employees', icon: IconUsers },
+  { to: '/insights', label: 'Insights', icon: IconChartBar },
+]
 
 export function AppLayout() {
   return (
