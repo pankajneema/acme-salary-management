@@ -94,7 +94,9 @@ Decisions:
 | GET | `/api/meta` | Countries, departments, job titles for dropdowns |
 | GET | `/api/health` | Liveness |
 
-`sort` is checked against an allow-list, so user input never reaches `ORDER BY` as raw SQL.
+`sort` is checked against an allow-list, so user input never reaches `ORDER BY` as raw SQL. Sorting by salary uses the **USD equivalent** (`salary_usd`): local amounts in different currencies can't be compared.
+
+Domain errors (`EmployeeNotFoundError`, `DuplicateEmailError`, `UnknownCountryError`) are raised by services and mapped to 404/409/422 in one place (`app/api/errors.py`). CSV export streams rows and escapes cells that start with `= + - @` to block spreadsheet formula injection.
 
 ## Trade-offs
 
