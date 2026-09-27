@@ -9,6 +9,7 @@ from app.api.errors import register_error_handlers
 from app.config import Settings
 from app.db import Base, create_db_engine, create_session_factory
 from app.reference_data import sync_countries
+from app.seed import seed_database
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -21,6 +22,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         Base.metadata.create_all(engine)
         with session_factory() as session:
             sync_countries(session)
+            if settings.seed_on_startup:
+                # No-op when employees already exist, so restarts never duplicate data.
+                seed_database(session, count=settings.seed_count)
         yield
         engine.dispose()
 

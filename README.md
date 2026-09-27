@@ -13,6 +13,7 @@ A web app that lets ACME's HR manager manage salary data for 10,000 employees ac
 ```bash
 cd backend
 uv sync                                   # install deps into .venv
+uv run python -m app.seed                 # 10,000 employees (idempotent; --reset to re-seed)
 uv run uvicorn app.main:app --reload      # http://localhost:8000/docs
 uv run pytest                             # tests
 uv run ruff check . && uv run ruff format --check .
@@ -23,3 +24,5 @@ Configuration comes from environment variables (see `backend/app/config.py`):
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `DATABASE_URL` | `sqlite:///./salary.db` | SQLAlchemy URL |
+| `SEED_ON_STARTUP` | `false` | Seed employees on boot if the table is empty |
+| `SEED_COUNT` | `10000` | How many employees to seed on startup |
