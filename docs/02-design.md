@@ -41,6 +41,29 @@ backend/app/
   seed.py            deterministic 10k seed
 ```
 
+### Frontend structure
+
+```
+frontend/src/
+  api/client.ts          typed fetch wrapper, ApiError, one function per endpoint
+  api/hooks.ts           React Query hooks; mutations invalidate employees + insights
+  api/types.ts           TypeScript mirror of the API schemas
+  features/employees/
+    EmployeesPage.tsx    page composition: header, filters, table, pagination, drawer
+    EmployeeTable.tsx    sortable table (local salary + ≈ USD)
+    EmployeeFilters.tsx  debounced search + country/department/job-title selects
+    EmployeeFormDrawer.tsx  create/edit form; API errors shown on the offending field
+    employeeQuery.ts     URL <-> list state (pure parse/apply + hook)
+    employeeForm.ts      validators, payload mapping, PATCH diffing (pure)
+  lib/format.ts          Intl-based money/date formatting (INR uses lakh grouping)
+```
+
+Logic that can be pure *is* pure (`employeeQuery.ts`, `employeeForm.ts`, `format.ts`) and is unit-tested directly. Components are tested at page level with a stubbed `fetch`, so tests exercise real components, hooks and routing rather than mocks of them.
+
+**List state lives in the URL** (`?country=IN&sort=salary_usd&page=3`). A refresh or the back button keeps the view, and an HR manager can send a colleague a link to "Indian engineers sorted by pay". Invalid URL values fall back to defaults.
+
+**Edits send only changed fields** (PATCH diff), so saving a salary change can't overwrite a concurrent edit to someone's job title.
+
 Routers are kept thin; services hold the logic; `stats.py` is pure and is the most unit-tested module. Routers depend on a `get_db` dependency, so tests swap in an in-memory database.
 
 ## Data model

@@ -19,6 +19,21 @@ uv run pytest                             # tests
 uv run ruff check . && uv run ruff format --check .
 ```
 
+### Frontend (Node 20+)
+
+```bash
+cd frontend
+npm install
+npm run dev          # http://localhost:5173, proxies /api to http://localhost:8000
+npm test             # Vitest + Testing Library
+npm run lint && npm run typecheck && npm run format:check
+```
+
+If port 8000 is taken, run the API elsewhere and point the proxy at it:
+`uv run uvicorn app.main:app --port 8001` and `API_URL=http://localhost:8001 npm run dev`.
+
+### Backend configuration
+
 Configuration comes from environment variables (see `backend/app/config.py`):
 
 | Variable | Default | Purpose |
