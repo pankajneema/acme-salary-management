@@ -10,6 +10,7 @@ from app.config import Settings
 from app.db import Base, create_db_engine, create_session_factory
 from app.reference_data import sync_countries
 from app.seed import seed_database
+from app.spa import mount_spa
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -42,6 +43,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(meta.router)
     app.include_router(employees.router)
     app.include_router(insights.router)
+    if settings.static_dir:
+        mount_spa(app, settings.static_dir)  # last: its catch-all must not shadow the API
     return app
 
 

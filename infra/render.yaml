@@ -1,0 +1,14 @@
+# Render Blueprint: New > Blueprint > select this repo > Blueprint Path: infra/render.yaml
+# Paths below are relative to the repository root, not to this file.
+services:
+  - type: web
+    name: acme-salary-management
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: SEED_ON_STARTUP
+        value: "true"

@@ -55,8 +55,30 @@ frontend/src/
     EmployeeFormDrawer.tsx  create/edit form; API errors shown on the offending field
     employeeQuery.ts     URL <-> list state (pure parse/apply + hook)
     employeeForm.ts      validators, payload mapping, PATCH diffing (pure)
+  features/insights/
+    InsightsPage.tsx     KPI row, country + distribution charts, country table,
+                         department payroll, country deep dive (?country=IN)
+    charts.tsx           bar charts (Mantine Charts / Recharts) + department bar list
+    tables.tsx           country table; job-title table with min–median–max range bars
+    insightsMath.ts      range geometry, bucket labels, rankings (pure)
+    LazyInsightsPage.tsx code-split: chart code (~120 KB gz) loads only on Insights
   lib/format.ts          Intl-based money/date formatting (INR uses lakh grouping)
 ```
+
+### Insights page: chart choices
+
+Each view answers one HR question, and the form follows from the question:
+
+| Question | Form | Why |
+|----------|------|-----|
+| How big is the org, what does it cost? | KPI tiles | Single numbers read better as numbers than as one-bar charts |
+| Which countries pay most? | Horizontal bar, **median in USD**, sorted | Magnitude comparison; USD is the only fair cross-country unit; the median resists outliers |
+| How are salaries spread? | Histogram with round 1/2/5×10ⁿ buckets | Shows shape (skew, gaps) that averages hide |
+| What exactly does each country pay? | Table (local currency + USD median) | Ten countries × five stats is lookup data, and it doubles as the accessible table view of the chart |
+| Which departments cost most? | Ranked bars with values as text | Every number readable without hovering |
+| What does each role earn in country X? | Table with an inline **min–median–max range bar** on a shared track | Precise numbers plus the shape at a glance; roles in the country compare by eye |
+
+Every chart encodes a single measure, so one hue is used throughout. It is checked with a palette validator for ≥ 3:1 contrast on both the light and dark surfaces, and it has dark-mode tokens in `viz.css`. Grid lines are recessive and follow the value axis, bars have 4px rounded data ends, and every mark has a hover tooltip.
 
 Logic that can be pure *is* pure (`employeeQuery.ts`, `employeeForm.ts`, `format.ts`) and is unit-tested directly. Components are tested at page level with a stubbed `fetch`, so tests exercise real components, hooks and routing rather than mocks of them.
 
@@ -156,6 +178,19 @@ Measured on the seeded 10k database (MacBook, uvicorn, warm, single request):
 | `GET /api/insights/distribution` (org-wide histogram) | ~9 ms |
 - SQLite runs in WAL mode for concurrent reads during writes.
 - The frontend debounces search (300 ms) and keeps the previous page on screen while loading to avoid flicker.
+
+## Deployment
+
+```
+Dockerfile (multi-stage)
+  1. node:22-alpine   npm ci && npm run build        -> frontend/dist
+  2. python:3.13-slim uv sync --locked --no-dev      -> API + dist, non-root user
+     ENV STATIC_DIR, SEED_ON_STARTUP=true, DATABASE_URL=sqlite:////data/salary.db
+```
+
+- `app/spa.py` serves the bundle. Client routes (`/insights?country=IN`) fall back to `index.html`, while unknown `/api/*` paths stay JSON 404s. Fingerprinted `/assets/*` are served `immutable`; `index.html` is `no-cache`, so a deploy is picked up immediately. Path traversal is blocked, and a missing `index.html` fails at startup instead of at the first request.
+- Render (Blueprint at `infra/render.yaml`) builds the image, injects `$PORT` and health-checks `/api/health`. On the free plan the disk is ephemeral. Seed-on-startup is idempotent, so a fresh container is demo-ready and a restart never duplicates data.
+- CI (`.github/workflows/ci.yml`) runs lint, format checks, both test suites and the production build on every push.
 
 ## What I'd build next
 
