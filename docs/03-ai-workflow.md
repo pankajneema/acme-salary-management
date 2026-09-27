@@ -15,6 +15,7 @@ I used **Claude Code** (an agentic CLI in VS Code) as a pair programmer. This fi
 |------|------------------|------------------------|
 | 1. Framing | Pasted the assessment brief. Asked for a one-page requirements doc (goal, persona, scope, deliberate exclusions with reasons) and design notes *before* any code. | Picked the stack when the AI asked instead of letting it guess: **FastAPI + SQLite** backend (my role), React + Mantine UI, deployed on **Render**. Reviewed the scope cuts. |
 | 1b. Review | Asked whether this AI-workflow file was appropriate to commit. | The first draft listed prompts for steps that hadn't happened yet. I trimmed it to real history only; each later step adds its own row. |
+| 2. Backend scaffold | FastAPI app factory, SQLAlchemy 2.0 typed models, env-based settings, and a pytest fixture with an isolated in-memory DB per test. | `uv init` generated a packaged `src/` layout with a CLI entry point, which was changed to a plain app (`package = false`). Ruff flagged `Depends()` in argument defaults (B008); this was fixed with an `Annotated` `DbSession` alias rather than suppressed. A test that only checked a tautology was dropped. Smoke-tested `/api/meta` against a running server. |
 
 ## Where I steered the AI
 
